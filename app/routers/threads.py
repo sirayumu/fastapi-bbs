@@ -39,3 +39,4 @@ async def create_thread():
     """
     return {"status": "ok", "message": "仮のスレッド作成APIです。"}
 
+
