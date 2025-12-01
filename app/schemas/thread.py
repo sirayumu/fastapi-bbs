@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from pydantic import BaseModel
 from datetime import datetime
 
 # ThreadBase：共通部分（title）
