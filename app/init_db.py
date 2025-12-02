@@ -1,4 +1,5 @@
 from app.database import engine, Base
+from app.models.thread import Thread
 from app.models import thread, post
 
 def init_db():
