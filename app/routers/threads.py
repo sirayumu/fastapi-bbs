@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter,Depends, HTTPException
 from app.models.thread import Thread
 from app.schemas.thread import ThreadResponse, ThreadCreate
 from app.database import get_db
@@ -9,7 +9,6 @@ router = APIRouter(
     prefix="/threads",
     tags=["Threads"]
 )
-
 
 # -----------------------------------
 # スレッド一覧 GET /threads
@@ -26,7 +25,12 @@ async def list_threads(db: Session = Depends(get_db)):
 @router.get("/{thread_id}", response_model=ThreadResponse)
 async def get_thread(thread_id: int, db: Session = Depends(get_db)):
     stmt = select(Thread).where(Thread.id == thread_id)
-    result = db.execute(stmt).scalar_one()
+    result = db.execute(stmt).scalar_one_or_none()
+
+    if result is None:
+        # 見つからないので例外を raise 404 Not found
+        raise HTTPException(status_code=404, detail="Thread not found")
+
     return result
 
 # -----------------------------------
@@ -34,15 +38,13 @@ async def get_thread(thread_id: int, db: Session = Depends(get_db)):
 # -----------------------------------
 @router.post("/", response_model=ThreadResponse)
 async def create_thread(thread: ThreadCreate,db: Session = Depends(get_db)):
-    # INSERT
     stmt = insert(Thread).values(title=thread.title)
     result = db.execute(stmt)
     db.commit()
 
-    # 実行結果からidを取得(AUTOINCREMENT で生成された id を取得)
     new_id = result.lastrowid
 
-    # 今作ったレコードを読み直し
     stmt2 = select(Thread).where(Thread.id == new_id)
     new_thread = db.execute(stmt2).scalar_one()
     return new_thread
+
