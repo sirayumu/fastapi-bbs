@@ -81,4 +81,4 @@ async def create_post(thread_id: int, post: PostCreate):
         "content": post.content,
         "parent_post_id": post.parent_post_id,
         "created_at": "2025-11-21T00:00:00",
-    }
+    } 

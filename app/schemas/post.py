@@ -13,5 +13,5 @@ class PostCreate(PostBase):
 class PostResponse(PostBase):
     id: int
     thread_id: int
-    post_number: int
+    post_number: int 
     created_at: str
