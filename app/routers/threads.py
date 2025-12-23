@@ -1,21 +1,50 @@
-from fastapi import APIRouter,Depends, HTTPException, Request
+
+# =====================
+# Standard Library
+# =====================
+import os
+
+# =====================
+# Third Party
+# =====================
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Form,
+    File,
+    UploadFile,
+)
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+from sqlalchemy import (
+    select,
+    insert,
+    func,
+    case,
+    distinct,
+    or_,
+)
+from sqlalchemy.orm import Session, aliased
+
+from faker import Faker
+fake = Faker("ja_JP")
+
+# =====================
+# Local Application
+# =====================
+from app.database import get_db
 from app.models.thread import Thread
 from app.models.post import Post
-
 from app.schemas.thread import ThreadResponse, ThreadCreate
-from app.database import get_db
-from sqlalchemy.orm import Session
-from sqlalchemy import select, insert,func,case,distinct,or_
+from app.services.file_upload import save_image_file
 
 router = APIRouter(
     prefix="/threads",
     tags=["Threads"]
 )
-
-from fastapi import Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import aliased
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -300,15 +329,6 @@ async def new_thread_page(request: Request):
 # -----------------------------------
 # フロント側処理 スレッドの新規作成
 # -----------------------------------
-from fastapi import Form, File, UploadFile, Request
-from fastapi.responses import RedirectResponse
-from sqlalchemy import insert, select
-from sqlalchemy.orm import Session
-from app.models.thread import Thread
-from app.models.post import Post
-from app.database import get_db
-import os
-
 UPLOAD_DIR = "app/static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -327,18 +347,15 @@ async def create_thread_front(
     db.commit()
     new_thread_id = result.lastrowid
 
-    # (1.5)添付ファイル処理
+    # (1.5)添付ファイル処理　servicesに共通化した
     attachment_filename = None
-    if image and image.filename:
-        # ファイル名の決定
-        _,ext = os.path.splitext(image.filename)
-        filename = f"thread{new_thread_id}_post1{ext}"
-        save_path = os.path.join(UPLOAD_DIR,filename)
 
-        # 保存
-        with open(save_path,"wb") as f:
-            f.write(await image.read())
-        attachment_filename = filename
+    if image and image.filename:
+        _, ext = os.path.splitext(image.filename)
+        attachment_filename = await save_image_file(
+            image=image,
+            filename=f"thread{new_thread_id}_post1{ext}"
+        )
 
 
     # (2) Post（本文）作成
@@ -434,9 +451,8 @@ async def list_threads_page(
 
 
 # -----------------------------------
-# スレッド一覧 GET /threads 
+# スレッド一覧 GET /threads
 # -----------------------------------
-
 @router.get("/", response_model=list[ThreadResponse])
 async def list_threads(db: Session = Depends(get_db)):
     stmt = select(Thread)
@@ -444,9 +460,8 @@ async def list_threads(db: Session = Depends(get_db)):
     return result
 
 # -----------------------------------
-# スレッド詳細 GET /threads/{thread_id}  
+# スレッド詳細 GET /threads/{thread_id}
 # -----------------------------------
-
 @router.get("/{thread_id}", response_model=ThreadResponse)
 async def get_thread(thread_id: int, db: Session = Depends(get_db)):
     stmt = select(Thread).where(Thread.id == thread_id)
@@ -458,10 +473,9 @@ async def get_thread(thread_id: int, db: Session = Depends(get_db)):
 
     return result
 
-# ----------------------------------- 
+# -----------------------------------
 # スレッド作成 POST /threads
 # -----------------------------------
-
 @router.post("/", response_model=ThreadResponse)
 async def create_thread(thread: ThreadCreate,db: Session = Depends(get_db)):
     # INSERT
@@ -472,7 +486,7 @@ async def create_thread(thread: ThreadCreate,db: Session = Depends(get_db)):
     # 実行結果からidを取得(AUTOINCREMENT で生成された id を取得)
     new_id = result.lastrowid
 
-    # 今作ったレコードを読み直し  
+    # 今作ったレコードを読み直し
     stmt2 = select(Thread).where(Thread.id == new_id)
     new_thread = db.execute(stmt2).scalar_one()
     return new_thread
@@ -481,9 +495,6 @@ async def create_thread(thread: ThreadCreate,db: Session = Depends(get_db)):
 # ダミー投稿作成
 # POST /threads/gen_dummy_threads
 # -----------------------
-from faker import Faker
-fake = Faker("ja_JP")   # 日本語のデータを生成
-
 @router.post("/gen_dummy_threads")
 def generate_dummy_threads(
     count: int = 100,               # ← デフォルト100件
